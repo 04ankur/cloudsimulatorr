@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cloud Simulator 3D</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #020617; /* Slate 950 */
+            color: #e2e8f0; /* Slate 200 */
+            overflow: hidden; /* Prevent body from scrolling */
+        }
+        .card {
+            background-color: rgba(30, 41, 59, 0.8); /* Slate 800 with transparency */
+            border: 1px solid #334155; /* Slate 700 */
+            border-radius: 0.75rem;
+            backdrop-filter: blur(10px);
+            transition: transform 0.1s ease, box-shadow 0.3s ease;
+            transform-style: preserve-3d;
+        }
+        .card-container {
+            perspective: 1000px;
+        }
+        .btn-primary {
+            background-color: #0ea5e9; /* Sky 500 */
+            color: white;
+            transition: background-color 0.3s ease;
+        }
+        .btn-primary:hover {
+            background-color: #0284c7; /* Sky 600 */
+        }
+        .btn-primary:disabled {
+            background-color: #334155;
+            cursor: not-allowed;
+        }
+        .input-field {
+             background-color: #334155;
+             border-color: #475569;
+             border-radius: 0.5rem;
+        }
+        .stat-card {
+            background-color: rgba(51, 65, 85, 0.8);
+        }
+        #datacenter-3d-vis {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: -1;
+        }
+        .glowing-text {
+            color: white;
+            text-shadow: 0 0 7px #fff,
+                         0 0 10px #fff,
+                         0 0 21px #fff,
+                         0 0 42px #0ea5e9,
+                         0 0 82px #0ea5e9,
+                         0 0 92px #0ea5e9,
+                         0 0 102px #0ea5e9,
+                         0 0 151px #0ea5e9;
+            animation: glow 1.5s ease-in-out infinite alternate;
+        }
+        @keyframes glow {
+            from { text-shadow: 0 0 5px #fff, 0 0 10px #fff, 0 0 15px #0ea5e9, 0 0 20px #0ea5e9; }
+            to { text-shadow: 0 0 10px #fff, 0 0 20px #0ea5e9, 0 0 30px #0ea5e9, 0 0 40px #0ea5e9; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="datacenter-3d-vis"></div>
+
+    <!-- Scrollable Content Wrapper -->
+    <div class="relative z-10 h-screen overflow-y-auto p-4 sm:p-6 md:p-8">
+        <div class="max-w-7xl mx-auto">
+            <header class="text-center mb-10">
+                <h1 class="text-4xl sm:text-5xl font-bold glowing-text">CloudSim 3D</h1>
+                <p class="text-slate-400 mt-3">An interactive 3D interface for cloud infrastructure simulation.</p>
+            </header>
+
+            <main class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <!-- Page 1: Configuration Column -->
+                <div id="config-page" class="lg:col-span-1 flex flex-col gap-8">
+                     <div class="card-container">
+                        <div class="card p-6">
+                            <h2 class="text-xl font-semibold mb-4 text-white flex items-center"><i class="fas fa-server mr-3"></i>Datacenter</h2>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label for="hosts" class="block text-sm font-medium text-slate-300">Hosts</label>
+                                    <input type="number" id="hosts" value="8" class="input-field mt-1 block w-full p-2">
+                                </div>
+                                <div>
+                                    <label for="host-pes" class="block text-sm font-medium text-slate-300">PEs / Host</label>
+                                    <input type="number" id="host-pes" value="8" class="input-field mt-1 block w-full p-2">
+                                </div>
+                                <div>
+                                    <label for="host-ram" class="block text-sm font-medium text-slate-300">RAM (MB)</label>
+                                    <input type="number" id="host-ram" value="16384" class="input-field mt-1 block w-full p-2">
+                                </div>
+                                <div>
+                                    <label for="host-mips" class="block text-sm font-medium text-slate-300">MIPS / PE</label>
+                                    <input type="number" id="host-mips" value="2000" class="input-field mt-1 block w-full p-2">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-container">
+                        <div class="card p-6">
+                            <h2 class="text-xl font-semibold mb-4 text-white flex items-center"><i class="fas fa-desktop mr-3"></i>Virtual Machines</h2>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label for="vms" class="block text-sm font-medium text-slate-300">VM Count</label>
+                                    <input type="number" id="vms" value="20" class="input-field mt-1 block w-full p-2">
+                                </div>
+                                <div>
+                                    <label for="vm-pes" class="block text-sm font-medium text-slate-300">PEs / VM</label>
+                                    <input type="number" id="vm-pes" value="2" class="input-field mt-1 block w-full p-2">
+                                </div>
+                                <div class="col-span-2">
+                                    <label for="vm-ram" class="block text-sm font-medium text-slate-300">RAM / VM (MB)</label>
+                                    <input type="number" id="vm-ram" value="2048" class="input-field mt-1 block w-full p-2">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-container">
+                        <div class="card p-6">
+                            <h2 class="text-xl font-semibold mb-4 text-white flex items-center"><i class="fas fa-tasks mr-3"></i>Cloudlets (Tasks)</h2>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label for="cloudlets" class="block text-sm font-medium text-slate-300">Tasks</label>
+                                    <input type="number" id="cloudlets" value="40" class="input-field mt-1 block w-full p-2">
+                                </div>
+                                <div>
+                                    <label for="cloudlet-length" class="block text-sm font-medium text-slate-300">Length (MI)</label>
+                                    <input type="number" id="cloudlet-length" value="5000" class="input-field mt-1 block w-full p-2">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-2 card-container">
+                        <button id="run-sim" class="card btn-primary w-full font-bold py-3 px-8 rounded-lg shadow-md flex items-center justify-center text-lg">
+                            <i id="run-button-icon" class="fas fa-play mr-3"></i>
+                            <span id="run-button-text">Run Simulation</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Page 2: Results Column -->
+                <div id="results-page" class="hidden lg:flex lg:col-span-2 flex-col gap-8">
+                    <div class="card-container">
+                        <div class="card p-6">
+                             <div class="flex justify-between items-center">
+                                <h2 class="text-xl font-semibold text-white flex items-center"><i class="fas fa-chart-pie mr-3"></i>Performance Metrics</h2>
+                             </div>
+                             <div id="results-output" class="mt-4">
+                                  <p class="text-slate-400 text-center py-4">Metrics will appear here.</p>
+                             </div>
+                        </div>
+                    </div>
+                    <div class="card-container">
+                        <div class="card p-6">
+                            <h2 class="text-xl font-semibold mb-4 text-white flex items-center"><i class="fas fa-chart-bar mr-3"></i>Cloudlet Execution Times</h2>
+                            <div class="min-h-[200px]">
+                                <canvas id="results-chart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-container">
+                        <div class="card p-6">
+                            <h2 class="text-xl font-semibold mb-4 text-white flex items-center"><i class="fas fa-clipboard-list mr-3"></i>Simulation Log</h2>
+                            <div id="simulation-log" class="bg-slate-900 h-40 overflow-y-auto p-3 rounded-md text-sm">
+                                <!-- Log messages will be dynamically inserted here -->
+                            </div>
+                        </div>
+                    </div>
+                     <div class="mt-2 card-container lg:hidden">
+                        <button id="back-button" class="card bg-slate-600 hover:bg-slate-500 w-full font-bold py-3 px-8 rounded-lg shadow-md flex items-center justify-center text-lg">
+                            <i class="fas fa-arrow-left mr-3"></i>
+                            <span>Back to Configuration</span>
+                        </button>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script>
+        // --- UI ELEMENT REFERENCES ---
+        const runButton = document.getElementById('run-sim');
+        const backButton = document.getElementById('back-button');
+        const configPage = document.getElementById('config-page');
+        const resultsPage = document.getElementById('results-page');
+        const resultsOutput = document.getElementById('results-output');
+        const logArea = document.getElementById('simulation-log');
+        const chartCanvas = document.getElementById('results-chart');
+        
+        // --- GLOBAL VARIABLES ---
+        // Use this URL for local testing
+        // const backendUrl = 'http://localhost:7070/run-simulation';
+        // Use this URL when you deploy to Render
+        const backendUrl = `${window.location.origin}/run-simulation`;
+        
+        let scene, camera, renderer, controls;
+        let hosts3D = [];
+        let chartInstance = null;
+
+        // --- 3D SCENE SETUP ---
+        function init3D() {
+            const container = document.getElementById('datacenter-3d-vis');
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 15, 25);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            container.appendChild(renderer.domElement);
+
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.minDistance = 10;
+            controls.maxDistance = 50;
+            controls.maxPolarAngle = Math.PI / 2 - 0.1;
+
+            const ambientLight = new THREE.AmbientLight(0x404040, 3);
+            scene.add(ambientLight);
+            const pointLight = new THREE.PointLight(0x0ea5e9, 50, 200);
+            pointLight.position.set(0, 10, 0);
+            scene.add(pointLight);
+
+            const grid = new THREE.GridHelper(100, 50, 0x0ea5e9, 0x334155);
+            scene.add(grid);
+
+            animate();
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            hosts3D.forEach(host => {
+                host.rotation.y += 0.002;
+                host.children.forEach(vm => {
+                    if(vm.isVMCore) {
+                        vm.rotation.y += 0.01;
+                        vm.scale.setScalar(Math.sin(Date.now() * 0.005) * 0.1 + 0.9);
+                    }
+                });
+            });
+            renderer.render(scene, camera);
+        }
+
+        function createServerRack(position) {
+            const group = new THREE.Group();
+            const frameMat = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.5 });
+            [-1, 1].forEach(x => {
+                [-1.5, 1.5].forEach(z => {
+                    const vGeo = new THREE.BoxGeometry(0.1, 3, 0.1);
+                    const vBar = new THREE.Mesh(vGeo, frameMat);
+                    vBar.position.set(x, 0, z);
+                    group.add(vBar);
+                });
+            });
+            group.position.copy(position);
+            return group;
+        }
+        
+        function update3DVisualization(hostLayout) {
+            hosts3D.forEach(h => scene.remove(h));
+            hosts3D = [];
+
+            const hostCount = hostLayout.length;
+            const angleStep = (Math.PI * 2) / hostCount;
+            const radius = 12;
+
+            hostLayout.forEach((hostData, i) => {
+                const pos = new THREE.Vector3(Math.cos(i * angleStep) * radius, 1.5, Math.sin(i * angleStep) * radius);
+                const hostMesh = createServerRack(pos);
+                
+                hostData.vms.forEach((vmId, j) => {
+                    const vmMat = new THREE.MeshStandardMaterial({ color: 0x6d28d9, emissive: 0x8b5cf6, transparent: true, opacity: 0.8 });
+                    const vmGeo = new THREE.IcosahedronGeometry(0.3, 0);
+                    const vmCore = new THREE.Mesh(vmGeo, vmMat);
+                    vmCore.isVMCore = true;
+                    
+                    const yPos = 1.2 - (j * 0.5);
+                    vmCore.position.set(0, yPos, 0);
+                    hostMesh.add(vmCore);
+                });
+
+                scene.add(hostMesh);
+                hosts3D.push(hostMesh);
+            });
+        }
+        
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }, false);
+
+        // --- UTILITY FUNCTIONS ---
+        function logMessage(message, type = 'info') {
+            const p = document.createElement('p');
+            const icon = type === 'error' ? 'fas fa-exclamation-circle text-red-400' : 'fas fa-info-circle text-blue-400';
+            p.innerHTML = `<i class="${icon} mr-2"></i>[${new Date().toLocaleTimeString()}] ${message}`;
+            if (type === 'error') p.classList.add('text-red-300');
+            logArea.appendChild(p);
+            logArea.scrollTop = logArea.scrollHeight;
+        }
+        
+        // --- MAIN SIMULATION LOGIC ---
+        runButton.addEventListener('click', async () => {
+            runButton.disabled = true;
+            runButton.textContent = 'Simulating...';
+            logArea.innerHTML = '';
+            logMessage('--- New Simulation Started ---');
+            
+            const config = {
+                hostCount: parseInt(document.getElementById('hosts').value),
+                pesPerHost: parseInt(document.getElementById('host-pes').value),
+                ramPerHost: parseInt(document.getElementById('host-ram').value),
+                mipsPerPe: parseInt(document.getElementById('host-mips').value),
+                vmCount: parseInt(document.getElementById('vms').value),
+                pesPerVm: parseInt(document.getElementById('vm-pes').value),
+                ramPerVm: parseInt(document.getElementById('vm-ram').value),
+                cloudletCount: parseInt(document.getElementById('cloudlets').value),
+                cloudletLength: parseInt(document.getElementById('cloudlet-length').value)
+            };
+
+            try {
+                logMessage('Sending configuration to backend...');
+                const response = await fetch(backendUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(config),
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(`Backend error: ${response.status} - ${errorData.message || response.statusText}`);
+                }
+                
+                const results = await response.json();
+                logMessage('Received results from backend.');
+                
+                update3DVisualization(results.hostLayout);
+                displayMetrics(results);
+                displayChart(results);
+                logMessage('--- Simulation Finished Successfully ---');
+                
+                // Switch to results page on mobile
+                if (window.innerWidth < 1024) {
+                    configPage.classList.add('hidden');
+                    resultsPage.classList.remove('hidden');
+                    resultsPage.classList.add('flex');
+                }
+
+            } catch (error) {
+                logMessage(`Simulation failed: ${error.message}`, 'error');
+                console.error("Simulation failed:", error);
+            } finally {
+                runButton.disabled = false;
+                runButton.textContent = 'Run Simulation';
+            }
+        });
+
+        backButton.addEventListener('click', () => {
+            resultsPage.classList.add('hidden');
+            resultsPage.classList.remove('flex');
+            configPage.classList.remove('hidden');
+        });
+        
+        function displayMetrics(results) {
+            const successfulTasks = results.cloudletResults.length;
+            const avgExecutionTime = successfulTasks > 0 ? (results.cloudletResults.reduce((sum, c) => sum + (c.finishTime - c.startTime), 0) / successfulTasks).toFixed(2) : 0;
+            resultsOutput.innerHTML = `
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="stat-card p-4 rounded-lg text-center">
+                        <p class="text-sm text-slate-300">Total Time</p>
+                        <p class="text-2xl font-bold text-white">${results.totalTime.toFixed(2)}s</p>
+                    </div>
+                    <div class="stat-card p-4 rounded-lg text-center">
+                        <p class="text-sm text-slate-300">Success Rate</p>
+                        <p class="text-2xl font-bold text-green-400">${results.successRate.toFixed(2)}%</p>
+                    </div>
+                    <div class="stat-card p-4 rounded-lg text-center">
+                        <p class="text-sm text-slate-300">Avg. Task Time</p>
+                        <p class="text-2xl font-bold text-white">${avgExecutionTime}s</p>
+                    </div>
+                    <div class="stat-card p-4 rounded-lg text-center">
+                        <p class="text-sm text-slate-300">RAM Usage</p>
+                        <p class="text-2xl font-bold text-sky-400">${results.ramUtilization.toFixed(2)}%</p>
+                    </div>
+                </div>
+            `;
+        }
+        
+        function displayChart(results) {
+            if (chartInstance) chartInstance.destroy();
+            const ctx = chartCanvas.getContext('2d');
+            chartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: results.cloudletResults.map(c => `Task ${c.id}`),
+                    datasets: [{
+                        label: 'Execution Time (s)',
+                        data: results.cloudletResults.map(c => (c.finishTime - c.startTime).toFixed(2)),
+                        backgroundColor: 'rgba(14, 165, 233, 0.6)',
+                        borderColor: 'rgba(14, 165, 233, 1)',
+                        borderWidth: 1,
+                        borderRadius: 4,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { beginAtZero: true, ticks: { color: '#94a3b8' }, grid: { color: '#334155' } },
+                        x: { ticks: { color: '#94a3b8' }, grid: { display: false } }
+                    },
+                    plugins: { legend: { display: false } }
+                }
+            });
+        }
+        
+        // --- INITIALIZATION & 3D CARD EFFECT ---
+        function init() {
+            init3D();
+            logMessage('UI Initialized. Ready for simulation.');
+
+            document.querySelectorAll('.card-container').forEach(container => {
+                const card = container.querySelector('.card');
+                container.addEventListener('mousemove', (e) => {
+                    const rect = container.getBoundingClientRect();
+                    const x = e.clientX - rect.left;
+                    const y = e.clientY - rect.top;
+                    const centerX = rect.width / 2;
+                    const centerY = rect.height / 2;
+                    const rotateX = (y - centerY) / 20;
+                    const rotateY = -(x - centerX) / 20;
+
+                    card.style.transform = `rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
+                    card.style.boxShadow = `${-rotateY * 2}px ${rotateX * 2}px 30px rgba(0,0,0,0.3)`;
+                });
+                container.addEventListener('mouseleave', () => {
+                    card.style.transform = 'rotateX(0deg) rotateY(0deg)';
+                    card.style.boxShadow = 'none';
+                });
+            });
+        }
+
+        init();
+
+    </script>
+</body>
+</html>
